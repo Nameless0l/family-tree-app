@@ -31,42 +31,83 @@ export default function TreePage({ params }: { params: { id: string } }) {
   const [showDeletePersonConfirm, setShowDeletePersonConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Récupérer les données de l'arbre
-  const fetchTreeData = async () => {
+// Extrait pour app/tree/[id]/page.tsx - fetchTreeData amélioré
+
+// Extrait pour app/tree/[id]/page.tsx - fetchTreeData amélioré
+
+const fetchTreeData = async () => {
     if (!id) return;
     
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/trees/${id}`);
+      console.log(`Tentative de chargement de l'arbre: ${id}`);
+      
+      // Ajouter un timestamp pour éviter le cache
+      const response = await fetch(`/api/trees/${id}?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error('Impossible de récupérer les données de l\'arbre');
+        const errorText = await response.text();
+        console.error(`Erreur HTTP: ${response.status}`, errorText);
+        throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
       }
       
-      const data: FamilyTreeData = await response.json();
-      setTreeData(data);
+      // Récupérer d'abord en tant que texte pour débogage
+      const rawText = await response.text();
+      console.log(`Données brutes reçues, longueur: ${rawText.length} caractères`);
       
-      // Créer le graphe
-      const familyGraph = new FamilyGraph(data.people);
-      setGraph(familyGraph);
+      // Vérifier que le texte est un JSON valide
+      if (!rawText || rawText.trim() === '') {
+        throw new Error('Données vides reçues du serveur');
+      }
       
-      // Construire l'arbre à partir de la racine
-      const rootNodeData = familyGraph.buildTree(data.rootPersonId);
-      if (rootNodeData) {
-        setRootNode(rootNodeData);
-      } else {
-        setError('Impossible de construire l\'arbre à partir de la racine');
+      try {
+        const data = JSON.parse(rawText);
+        console.log(`Données JSON parsées avec succès, ID: ${data.id}`);
+        setTreeData(data);
+        
+        // Vérifier que nous avons les données essentielles
+        if (!data.people || !Array.isArray(data.people) || data.people.length === 0) {
+          throw new Error('Arbre sans personnes');
+        }
+        
+        if (!data.rootPersonId) {
+          throw new Error('ID de personne racine manquant');
+        }
+        
+        // Créer le graphe
+        const familyGraph = new FamilyGraph(data.people);
+        setGraph(familyGraph);
+        
+        // Construire l'arbre à partir de la racine
+        const rootNodeData = familyGraph.buildTree(data.rootPersonId);
+        if (rootNodeData) {
+          setRootNode(rootNodeData);
+        } else {
+          throw new Error(`Impossible de construire l'arbre à partir de la racine (ID: ${data.rootPersonId})`);
+        }
+      } catch (parseError) {
+        console.error('Erreur de parsing JSON:', parseError);
+        console.error('Extrait des données:', rawText.substring(0, 200) + '...');
+        throw new Error(`Erreur de parsing: ${parseError.message}`);
       }
     } catch (error) {
-      console.error('Erreur:', error);
-      setError('Une erreur est survenue lors du chargement de l\'arbre');
+      console.error('Erreur lors du chargement:', error);
+      setError(`Une erreur est survenue lors du chargement de l'arbre: ${error instanceof Error ? error.message : String(error)}`);
+      setTreeData(null);
+      setRootNode(null);
+      setGraph(null);
     } finally {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchTreeData();
   }, [id]);
@@ -162,25 +203,121 @@ export default function TreePage({ params }: { params: { id: string } }) {
     }
   };
   
-  const handlePersonAdded = (newPerson: Person) => {
-    setFormMode(FormMode.NONE);
+  const handlePersonAdded = async (newPerson: Person) => {
+    if (!treeData) return;
     
-    // Rafraîchir les données
-    fetchTreeData();
-    
-    // Message de succès
-    alert(`Personne "${newPerson.name}" ajoutée avec succès!`);
+    try {
+      setIsDeleting(true); // Réutiliser cet état pour indiquer le chargement
+      
+      // Ajouter la nouvelle personne à l'arbre existant
+      const updatedTree = {
+        ...treeData,
+        people: [...treeData.people, newPerson]
+      };
+      
+      console.log(`Mise à jour de l'arbre ${updatedTree.id} avec nouvelle personne:`, newPerson);
+      
+      // Sauvegarder l'arbre mis à jour avec le même ID
+      const response = await fetch(`/api/trees/${treeData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedTree)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Impossible de mettre à jour l\'arbre');
+      }
+      
+      // Mettre à jour l'interface immédiatement
+      setTreeData(updatedTree);
+      
+      // Reconstruire le graphe
+      const familyGraph = new FamilyGraph(updatedTree.people);
+      setGraph(familyGraph);
+      
+      // Construire le nouvel arbre avec la personne ajoutée
+      const rootNodeData = familyGraph.buildTree(updatedTree.rootPersonId);
+      if (rootNodeData) {
+        setRootNode(rootNodeData);
+      }
+      
+      // Passer en mode normal
+      setFormMode(FormMode.NONE);
+      
+      // Forcer le rendu de l'arbre
+      setRenderKey(prev => prev + 1);
+      
+      // Message de succès
+      alert(`Personne "${newPerson.name}" ajoutée avec succès!`);
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout:', error);
+      alert('Erreur lors de l\'ajout: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsDeleting(false);
+    }
   };
   
-  const handlePersonEdited = (updatedPerson: Person) => {
-    setFormMode(FormMode.NONE);
+  const handlePersonEdited = async (updatedPerson: Person) => {
+    if (!treeData) return;
     
-    // Rafraîchir les données
-    fetchTreeData();
-    setSelectedPerson(updatedPerson);
-    
-    // Message de succès
-    alert(`Personne "${updatedPerson.name}" mise à jour avec succès!`);
+    try {
+      setIsDeleting(true); // Réutiliser cet état pour indiquer le chargement
+      
+      // S'assurer que l'ID de l'arbre reste le même
+      const updatedTree = {
+        ...treeData,
+        people: treeData.people.map(person => 
+          person.id === updatedPerson.id ? updatedPerson : person
+        )
+      };
+      
+      console.log(`Mise à jour de l'arbre ${updatedTree.id} avec personne modifiée:`, updatedPerson);
+      
+      // Sauvegarder l'arbre mis à jour avec le même ID
+      const response = await fetch(`/api/trees/${treeData.id}`, {
+        method: 'PUT', // Utiliser PUT pour une mise à jour
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedTree)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Impossible de mettre à jour l\'arbre');
+      }
+      
+      // Mettre à jour l'interface immédiatement
+      setTreeData(updatedTree);
+      
+      // Construire le nouvel arbre avec la personne mise à jour
+      if (graph) {
+        const rootNodeData = graph.buildTree(updatedTree.rootPersonId);
+        if (rootNodeData) {
+          setRootNode(rootNodeData);
+        }
+      }
+      
+      // Mettre à jour la personne sélectionnée
+      setSelectedPerson(updatedPerson);
+      
+      // Passer en mode normal
+      setFormMode(FormMode.NONE);
+      
+      // Forcer le rendu de l'arbre
+      setRenderKey(prev => prev + 1);
+      
+      // Message de succès
+      alert(`Personne "${updatedPerson.name}" mise à jour avec succès!`);
+      
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      alert('Erreur lors de la mise à jour: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsDeleting(false);
+    }
   };
   
   const handleDeleteTree = async () => {
@@ -197,6 +334,7 @@ export default function TreePage({ params }: { params: { id: string } }) {
       });
       
       if (!response.ok) {
+        console.log(response)
         throw new Error('Impossible de supprimer l\'arbre');
       }
       
@@ -209,7 +347,6 @@ export default function TreePage({ params }: { params: { id: string } }) {
       setIsDeleting(false);
     }
   };
-  
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen">Chargement...</div>;
   }
@@ -395,4 +532,8 @@ export default function TreePage({ params }: { params: { id: string } }) {
       )}
     </div>
   );
+}
+
+function setRenderKey(arg0: (prev: any) => any) {
+    throw new Error('Function not implemented.');
 }

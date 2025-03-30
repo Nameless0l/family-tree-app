@@ -193,6 +193,7 @@ export default function TreePage({ params }: { params: { id: string } }) {
       });
       
       if (!response.ok) {
+        console.log(response)
         throw new Error('Impossible de supprimer l\'arbre');
       }
       
