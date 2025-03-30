@@ -113,7 +113,7 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({
           <input
             id="name"
             type="text"
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border border-blue-700 text-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={loading}
@@ -129,7 +129,7 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({
             <input
               id="birthYear"
               type="number"
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 border border-gray-300 text-gray-700  rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={birthYear}
               onChange={(e) => setBirthYear(e.target.value)}
               disabled={loading}
@@ -144,7 +144,7 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({
             <input
               id="deathYear"
               type="number"
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2 border border-gray-300 text-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={deathYear}
               onChange={(e) => setDeathYear(e.target.value)}
               disabled={loading}
@@ -158,7 +158,7 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({
           </label>
           <select
             id="parentId"
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border border-gray-300 text-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={parentId}
             onChange={(e) => setParentId(e.target.value)}
             disabled={loading}
@@ -178,7 +178,7 @@ const AddPersonForm: React.FC<AddPersonFormProps> = ({
           </label>
           <textarea
             id="notes"
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 text-gray-700 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={loading}
